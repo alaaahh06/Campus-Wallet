@@ -108,7 +108,7 @@ summary{text-transform:uppercase;letter-spacing:1.5px;font-size:12px}
 </details>
 </main>
 
-<div class="foot"><div><span class="mute">Account balance<br><small id="split" style="text-transform:none;letter-spacing:0"></small></span><b id="bal"></b></div></div>
+<div class="foot"><div><span style="display:flex;flex-direction:column"><span class="mute">Account balance</span><b id="bal" style="font-size:28px"></b></span><span style="display:flex;flex-direction:column;text-align:right"><span class="mute">Cash in hand</span><b id="cashbal" style="font-size:28px"></b></span></div></div>
 
 <script>
 const KEY="campus-wallet-v1";
@@ -151,7 +151,7 @@ function render(){
  const p=$("pick");if(p)p.onchange=()=>{if(view==="day")selDay=p.value||today();else if(view==="month")selMonth=p.value||today().slice(0,7);else selYear=p.value||today().slice(0,4);render()};
  v.querySelectorAll(".x").forEach(b=>b.onclick=()=>{S.tx=S.tx.filter(t=>t.id!==b.dataset.id);save();render();bal()});
 }
-function bal(){let u=S.open,c=S.cash;S.tx.forEach(t=>{const d=t.type==="exp"?-t.amt:t.amt;if(t.mode==="cash")c+=d;else u+=d});const b=u+c;$("bal").textContent=money(b);$("bal").style.color=b<0?"var(--bad)":"var(--ink)";$("split").textContent="UPI "+money(u)+" · Cash "+money(c)}
+function bal(){let u=S.open,c=S.cash;S.tx.forEach(t=>{const d=t.type==="exp"?-t.amt:t.amt;if(t.mode==="cash")c+=d;else u+=d});$("bal").textContent=money(u);$("bal").style.color=u<0?"var(--bad)":"var(--ink)";$("cashbal").textContent=money(c);$("cashbal").style.color=c<0?"var(--bad)":"var(--ink)"}
 
 $("typeSeg").onclick=e=>{const t=e.target.dataset.t;if(!t)return;type=t;[...$("typeSeg").children].forEach(b=>b.classList.toggle("on",b.dataset.t===t));fillCats()};
 $("modeSeg").onclick=e=>{const m=e.target.dataset.m;if(!m)return;mode=m;[...$("modeSeg").children].forEach(b=>b.classList.toggle("on",b.dataset.m===m))};
