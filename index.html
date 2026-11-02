@@ -92,6 +92,8 @@ summary{text-transform:uppercase;letter-spacing:1.5px;font-size:12px}
   <div><label>Date</label><input id="date" type="date"></div></div>
   <div class="row" style="margin-top:8px"><div><label>Category</label><select id="cat"></select></div>
   <div><label>Note (optional)</label><input id="note" placeholder="e.g. lunch"></div></div>
+  <label style="margin-top:12px">Paid / received via</label>
+  <div class="seg" id="modeSeg" style="margin:0"><button class="on" data-m="upi">UPI / Bank</button><button data-m="cash">Cash</button></div>
   <button class="btn" id="add">Add entry</button>
 </div>
 
@@ -99,18 +101,19 @@ summary{text-transform:uppercase;letter-spacing:1.5px;font-size:12px}
 <div class="card" id="view"></div>
 
 <details class="card"><summary>Settings</summary>
-  <div class="row" style="margin-top:10px"><div><label>Opening balance</label><input id="open" type="number" inputmode="decimal" step="0.01"></div>
+  <div class="row" style="margin-top:10px"><div><label>Opening UPI / bank</label><input id="open" type="number" inputmode="decimal" step="0.01"></div>
   <div><label>Currency symbol</label><input id="cur" maxlength="3"></div></div>
+  <div style="margin-top:8px"><label>Opening cash in hand</label><input id="cash" type="number" inputmode="decimal" step="0.01"></div>
   <button class="btn" id="reset" style="background:var(--bad)">Clear all entries</button>
 </details>
 </main>
 
-<div class="foot"><div><span class="mute">Account balance</span><b id="bal"></b></div></div>
+<div class="foot"><div><span class="mute">Account balance<br><small id="split" style="text-transform:none;letter-spacing:0"></small></span><b id="bal"></b></div></div>
 
 <script>
 const KEY="campus-wallet-v1";
 const CATS={exp:["Food","Transport","Books & Fees","Rent","Fun","Bills","Other"],inc:["Allowance","Job","Scholarship","Other"]};
-let S={open:0,cur:"$",tx:[]},type="exp",view="day";
+let S={open:0,cash:0,cur:"₹",tx:[]},type="exp",mode="upi",view="day";
 try{const r=localStorage.getItem(KEY);if(r)S=Object.assign(S,JSON.parse(r))}catch(e){}
 const $=id=>document.getElementById(id);
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
@@ -121,9 +124,9 @@ const MN=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec
 let selDay=today(),selMonth=today().slice(0,7),selYear=today().slice(0,4);
 
 function fillCats(){$("cat").innerHTML=CATS[type].map(c=>`<option>${c}</option>`).join("")}
-function sums(list){let e=0,i=0;list.forEach(t=>t.type==="exp"?e+=t.amt:i+=t.amt);return{e,i}}
-function row(t){return `<div class="tx"><div class="m"><b>${esc(t.cat)}</b><span>${esc(t.note||"")}${t.note?" · ":""}${t.date}</span></div><div class="amt ${t.type==="exp"?"e":"i"}">${t.type==="exp"?"−":"+"}${money(t.amt).replace("−","")}</div><button class="x" data-id="${t.id}" aria-label="Delete">×</button></div>`}
-function summary(s){return `<div class="sum"><div><small>Spent</small><b>${money(s.e)}</b></div><div><small>Income</small><b>${money(s.i)}</b></div><div><small>Net</small><b>${money(s.i-s.e)}</b></div></div>`}
+function sums(list){let e=0,i=0,ec=0;list.forEach(t=>{if(t.type==="exp"){e+=t.amt;if(t.mode==="cash")ec+=t.amt}else i+=t.amt});return{e,i,ec}}
+function row(t){return `<div class="tx"><div class="m"><b>${esc(t.cat)}</b><span>${t.mode==="cash"?"CASH":"UPI"} · ${esc(t.note||"")}${t.note?" · ":""}${t.date}</span></div><div class="amt ${t.type==="exp"?"e":"i"}">${t.type==="exp"?"−":"+"}${money(t.amt).replace("−","")}</div><button class="x" data-id="${t.id}" aria-label="Delete">×</button></div>`}
+function summary(s){return `<div class="sum"><div><small>Spent</small><b>${money(s.e)}</b></div><div><small>Income</small><b>${money(s.i)}</b></div><div><small>Net</small><b>${money(s.i-s.e)}</b></div></div><div class="mute" style="margin-top:8px">Spent: UPI ${money(s.e-s.ec)} · Cash ${money(s.ec)}</div>`}
 function breakdown(list){const m={};list.filter(t=>t.type==="exp").forEach(t=>m[t.cat]=(m[t.cat]||0)+t.amt);
  const a=Object.entries(m).sort((x,y)=>y[1]-x[1]);if(!a.length)return"";const mx=a[0][1];
  return `<h3 style="margin:16px 0 0;font-size:15px">Spending by category</h3>`+a.map(([c,v])=>`<div class="cat"><div><span>${esc(c)}</span><b>${money(v)}</b></div><div class="bar"><i style="width:${v/mx*100}%"></i></div></div>`).join("")}
@@ -148,19 +151,21 @@ function render(){
  const p=$("pick");if(p)p.onchange=()=>{if(view==="day")selDay=p.value||today();else if(view==="month")selMonth=p.value||today().slice(0,7);else selYear=p.value||today().slice(0,4);render()};
  v.querySelectorAll(".x").forEach(b=>b.onclick=()=>{S.tx=S.tx.filter(t=>t.id!==b.dataset.id);save();render();bal()});
 }
-function bal(){const s=sums(S.tx);const b=S.open+s.i-s.e;$("bal").textContent=money(b);$("bal").style.color=b<0?"var(--bad)":"var(--ink)"}
+function bal(){let u=S.open,c=S.cash;S.tx.forEach(t=>{const d=t.type==="exp"?-t.amt:t.amt;if(t.mode==="cash")c+=d;else u+=d});const b=u+c;$("bal").textContent=money(b);$("bal").style.color=b<0?"var(--bad)":"var(--ink)";$("split").textContent="UPI "+money(u)+" · Cash "+money(c)}
 
 $("typeSeg").onclick=e=>{const t=e.target.dataset.t;if(!t)return;type=t;[...$("typeSeg").children].forEach(b=>b.classList.toggle("on",b.dataset.t===t));fillCats()};
+$("modeSeg").onclick=e=>{const m=e.target.dataset.m;if(!m)return;mode=m;[...$("modeSeg").children].forEach(b=>b.classList.toggle("on",b.dataset.m===m))};
 $("viewSeg").onclick=e=>{const t=e.target.dataset.v;if(!t)return;view=t;[...$("viewSeg").children].forEach(b=>b.classList.toggle("on",b.dataset.v===t));render()};
 $("add").onclick=()=>{const a=parseFloat($("amt").value);if(!(a>0)){$("amt").focus();return}
  const d=$("date").value||today();
- S.tx.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),date:d,type,cat:$("cat").value,amt:a,note:$("note").value.trim()});
+ S.tx.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),date:d,type,mode,cat:$("cat").value,amt:a,note:$("note").value.trim()});
  $("amt").value="";$("note").value="";selDay=d;selMonth=d.slice(0,7);selYear=d.slice(0,4);save();render();bal()};
 $("open").onchange=()=>{S.open=parseFloat($("open").value)||0;save();bal()};
+$("cash").onchange=()=>{S.cash=parseFloat($("cash").value)||0;save();bal()};
 $("cur").onchange=()=>{S.cur=$("cur").value||"$";save();render();bal()};
 $("reset").onclick=()=>{if(confirm("Delete all entries? This can’t be undone.")){S.tx=[];save();render();bal()}};
 
-$("date").value=today();$("open").value=S.open;$("cur").value=S.cur;
+$("date").value=today();$("open").value=S.open;$("cash").value=S.cash;$("cur").value=S.cur;
 fillCats();render();bal();
 </script>
 <script>try{if("serviceWorker" in navigator&&location.protocol.startsWith("http"))navigator.serviceWorker.register("sw.js")}catch(e){}</script>
