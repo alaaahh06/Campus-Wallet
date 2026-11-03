@@ -80,6 +80,23 @@ input:focus,select:focus{outline:none;border-color:var(--acc)}
 .x{font-family:inherit}
 h3{text-transform:uppercase;letter-spacing:1.5px;font-size:11px!important;color:var(--mute)}
 summary{text-transform:uppercase;letter-spacing:1.5px;font-size:12px}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes growx{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes growy{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+@keyframes flash{from{background:var(--accbg)}to{background:transparent}}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+main>*{animation:rise .55s cubic-bezier(.2,.7,.2,1) both}
+main>*:nth-child(2){animation-delay:.07s}main>*:nth-child(3){animation-delay:.14s}main>*:nth-child(4){animation-delay:.21s}main>*:nth-child(5){animation-delay:.28s}
+#view>*{animation:rise .4s cubic-bezier(.2,.7,.2,1) both}
+#view>*:nth-child(2){animation-delay:.04s}#view>*:nth-child(3){animation-delay:.08s}#view>*:nth-child(4){animation-delay:.12s}#view>*:nth-child(n+5){animation-delay:.16s}
+.tx.new{animation:rise .4s both,flash 1.6s ease-out;border-radius:10px}
+.dot{animation:blink 2.4s ease-in-out infinite}
+.bar i{transform-origin:left;animation:growx .8s cubic-bezier(.2,.7,.2,1) both}
+.cols i{transform-origin:bottom;animation:growy .8s cubic-bezier(.2,.7,.2,1) both}
+.btn,.seg button,.x,input,select,.sum>div{transition:transform .15s,background .25s,color .25s,border-color .25s}
+.btn:active,.seg button:active,.x:active{transform:scale(.94)}
+.sum>div:hover{transform:translateY(-2px);border-color:var(--ink)}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
@@ -121,37 +138,41 @@ const today=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth
 const money=n=>(n<0?"−":"")+S.cur+Math.abs(n).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const MN=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-let selDay=today(),selMonth=today().slice(0,7),selYear=today().slice(0,4);
+let lastId="",prevBal={u:0,c:0},selDay=today(),selMonth=today().slice(0,7),selYear=today().slice(0,4);
 
 function fillCats(){$("cat").innerHTML=CATS[type].map(c=>`<option>${c}</option>`).join("")}
 function sums(list){let e=0,i=0,ec=0;list.forEach(t=>{if(t.type==="exp"){e+=t.amt;if(t.mode==="cash")ec+=t.amt}else i+=t.amt});return{e,i,ec}}
-function row(t){return `<div class="tx"><div class="m"><b>${esc(t.cat)}</b><span>${t.mode==="cash"?"CASH":"UPI"} · ${esc(t.note||"")}${t.note?" · ":""}${t.date}</span></div><div class="amt ${t.type==="exp"?"e":"i"}">${t.type==="exp"?"−":"+"}${money(t.amt).replace("−","")}</div><button class="x" data-id="${t.id}" aria-label="Delete">×</button></div>`}
+function row(t){return `<div class="tx${t.id===lastId?" new":""}"><div class="m"><b>${esc(t.cat)}</b><span>${t.mode==="cash"?"CASH":"UPI"} · ${esc(t.note||"")}${t.note?" · ":""}${t.date}</span></div><div class="amt ${t.type==="exp"?"e":"i"}">${t.type==="exp"?"−":"+"}${money(t.amt).replace("−","")}</div><button class="x" data-id="${t.id}" aria-label="Delete">×</button></div>`}
 function summary(s){return `<div class="sum"><div><small>Spent</small><b>${money(s.e)}</b></div><div><small>Income</small><b>${money(s.i)}</b></div><div><small>Net</small><b>${money(s.i-s.e)}</b></div></div><div class="mute" style="margin-top:8px">Spent: UPI ${money(s.e-s.ec)} · Cash ${money(s.ec)}</div>`}
+function avgBox(l,days){const s=sums(l);return `<div class="sum"><div><small>Avg spent / day</small><b>${money(s.e/days)}</b></div><div><small>Avg income / day</small><b>${money(s.i/days)}</b></div></div><div class="mute" style="margin-top:6px">Average over ${days} day${days>1?"s":""}</div>`}
+function ydays(){const y=+selYear,full=(y%4===0&&y%100!==0)||y%400===0?366:365;return selYear===today().slice(0,4)?Math.floor((new Date(today())-new Date(selYear+"-01-01"))/864e5)+1:full}
+function dailyAvg(){const ym=selDay.slice(0,7);return avgBox(S.tx.filter(t=>t.date.startsWith(ym)&&t.date<=selDay),+selDay.slice(8))}
 function breakdown(list){const m={};list.filter(t=>t.type==="exp").forEach(t=>m[t.cat]=(m[t.cat]||0)+t.amt);
  const a=Object.entries(m).sort((x,y)=>y[1]-x[1]);if(!a.length)return"";const mx=a[0][1];
- return `<h3 style="margin:16px 0 0;font-size:15px">Spending by category</h3>`+a.map(([c,v])=>`<div class="cat"><div><span>${esc(c)}</span><b>${money(v)}</b></div><div class="bar"><i style="width:${v/mx*100}%"></i></div></div>`).join("")}
-function cols(vals,labels){const mx=Math.max(...vals,1);return `<div class="cols">`+vals.map((v,k)=>`<div title="${money(v)}"><i style="height:${v/mx*85}%"></i>${labels[k]}</div>`).join("")+`</div>`}
+ return `<h3 style="margin:16px 0 0;font-size:15px">Spending by category</h3>`+a.map(([c,v],k)=>`<div class="cat"><div><span>${esc(c)}</span><b>${money(v)}</b></div><div class="bar"><i style="width:${v/mx*100}%;animation-delay:${k*70}ms"></i></div></div>`).join("")}
+function cols(vals,labels){const mx=Math.max(...vals,1);return `<div class="cols">`+vals.map((v,k)=>`<div title="${money(v)}"><i style="height:${v/mx*85}%;animation-delay:${k*25}ms"></i>${labels[k]}</div>`).join("")+`</div>`}
 
 function render(){
  const all=S.tx,v=$("view");let h="";
  if(view==="day"){
   const l=all.filter(t=>t.date===selDay);
-  h=`<label>Day</label><input type="date" id="pick" value="${selDay}">${summary(sums(l))}<div style="margin-top:8px">${l.length?l.map(row).join(""):'<div class="empty">No entries for this day.</div>'}</div>`;
+  h=`<label>Day</label><input type="date" id="pick" value="${selDay}">${summary(sums(l))}${dailyAvg()}<div style="margin-top:8px">${l.length?l.map(row).join(""):'<div class="empty">No entries for this day.</div>'}</div>`;
  }else if(view==="month"){
   const l=all.filter(t=>t.date.startsWith(selMonth)),[y,m]=selMonth.split("-").map(Number),n=new Date(y,m,0).getDate();
   const d=Array(n).fill(0);l.filter(t=>t.type==="exp").forEach(t=>d[+t.date.slice(8)-1]+=t.amt);
-  h=`<label>Month</label><input type="month" id="pick" value="${selMonth}">${summary(sums(l))}<div class="mute" style="margin-top:12px">Daily spending</div>${cols(d,d.map((_,k)=>(k+1)%5===0||k===0?k+1:""))}${breakdown(l)}<h3 style="margin:16px 0 0;font-size:15px">Entries</h3>${l.length?l.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(row).join(""):'<div class="empty">No entries this month.</div>'}`;
+  h=`<label>Month</label><input type="month" id="pick" value="${selMonth}">${summary(sums(l))}${avgBox(l,selMonth===today().slice(0,7)?+today().slice(8):n)}<div class="mute" style="margin-top:12px">Daily spending</div>${cols(d,d.map((_,k)=>(k+1)%5===0||k===0?k+1:""))}${breakdown(l)}<h3 style="margin:16px 0 0;font-size:15px">Entries</h3>${l.length?l.slice().sort((a,b)=>b.date.localeCompare(a.date)).map(row).join(""):'<div class="empty">No entries this month.</div>'}`;
  }else{
   const l=all.filter(t=>t.date.startsWith(selYear)),mo=Array(12).fill(0);
   l.filter(t=>t.type==="exp").forEach(t=>mo[+t.date.slice(5,7)-1]+=t.amt);
   const rows=mo.map((v,k)=>`<div class="tx"><div class="m"><b>${MN[k]}</b></div><div class="amt e">${money(v)}</div></div>`).join("");
-  h=`<label>Year</label><input type="number" id="pick" value="${selYear}" min="2000" max="2100">${summary(sums(l))}<div class="mute" style="margin-top:12px">Monthly spending</div>${cols(mo,MN.map(x=>x[0]))}${breakdown(l)}<h3 style="margin:16px 0 0;font-size:15px">Month by month</h3>${rows}`;
+  h=`<label>Year</label><input type="number" id="pick" value="${selYear}" min="2000" max="2100">${summary(sums(l))}${avgBox(l,ydays())}<div class="mute" style="margin-top:12px">Monthly spending</div>${cols(mo,MN.map(x=>x[0]))}${breakdown(l)}<h3 style="margin:16px 0 0;font-size:15px">Month by month</h3>${rows}`;
  }
  v.innerHTML=h;
  const p=$("pick");if(p)p.onchange=()=>{if(view==="day")selDay=p.value||today();else if(view==="month")selMonth=p.value||today().slice(0,7);else selYear=p.value||today().slice(0,4);render()};
  v.querySelectorAll(".x").forEach(b=>b.onclick=()=>{S.tx=S.tx.filter(t=>t.id!==b.dataset.id);save();render();bal()});
 }
-function bal(){let u=S.open,c=S.cash;S.tx.forEach(t=>{const d=t.type==="exp"?-t.amt:t.amt;if(t.mode==="cash")c+=d;else u+=d});$("bal").textContent=money(u);$("bal").style.color=u<0?"var(--bad)":"var(--ink)";$("cashbal").textContent=money(c);$("cashbal").style.color=c<0?"var(--bad)":"var(--ink)"}
+function tween(id,from,to){const el=$(id);el.style.color=to<0?"var(--bad)":"var(--ink)";if(from===to||matchMedia("(prefers-reduced-motion:reduce)").matches){el.textContent=money(to);return}const t0=performance.now();(function f(t){const p=Math.min(1,(t-t0)/600),e=1-Math.pow(1-p,3);el.textContent=money(from+(to-from)*e);if(p<1)requestAnimationFrame(f)})(t0)}
+function bal(){let u=S.open,c=S.cash;S.tx.forEach(t=>{const d=t.type==="exp"?-t.amt:t.amt;if(t.mode==="cash")c+=d;else u+=d});tween("bal",prevBal.u,u);tween("cashbal",prevBal.c,c);prevBal={u,c}}
 
 $("typeSeg").onclick=e=>{const t=e.target.dataset.t;if(!t)return;type=t;[...$("typeSeg").children].forEach(b=>b.classList.toggle("on",b.dataset.t===t));fillCats()};
 $("modeSeg").onclick=e=>{const m=e.target.dataset.m;if(!m)return;mode=m;[...$("modeSeg").children].forEach(b=>b.classList.toggle("on",b.dataset.m===m))};
@@ -159,7 +180,7 @@ $("viewSeg").onclick=e=>{const t=e.target.dataset.v;if(!t)return;view=t;[...$("v
 $("add").onclick=()=>{const a=parseFloat($("amt").value);if(!(a>0)){$("amt").focus();return}
  const d=$("date").value||today();
  S.tx.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),date:d,type,mode,cat:$("cat").value,amt:a,note:$("note").value.trim()});
- $("amt").value="";$("note").value="";selDay=d;selMonth=d.slice(0,7);selYear=d.slice(0,4);save();render();bal()};
+ $("amt").value="";$("note").value="";selDay=d;selMonth=d.slice(0,7);selYear=d.slice(0,4);lastId=S.tx[S.tx.length-1].id;save();render();bal()};
 $("open").onchange=()=>{S.open=parseFloat($("open").value)||0;save();bal()};
 $("cash").onchange=()=>{S.cash=parseFloat($("cash").value)||0;save();bal()};
 $("cur").onchange=()=>{S.cur=$("cur").value||"$";save();render();bal()};
